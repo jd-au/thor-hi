@@ -23,7 +23,7 @@ for filename in hidata/*.fits; do
 done
 
 echo "Analysing spectra"
-python analyse_data.py ${filename} >& logs/analyse-${COUNTER}.log
+python analyse_spectra.py >& logs/spectra.log
 
 date
 echo "Done"
