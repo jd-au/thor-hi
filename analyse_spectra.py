@@ -89,16 +89,16 @@ def parseargs():
     """
     parser = argparse.ArgumentParser(
         description="Analyse the produced HI spectra and extract stats and produce diagrams.")
-    # parser.add_argument("-i", "--input", help="The input spectra catalogue",
-    #                    default='magmo-spectra.vot')
-    # parser.add_argument("--plot_only", help="Produce plots for the result of a previous decomposition", default=False,
-    #                    action='store_true')
+    parser.add_argument("-i", "--input", help="The parent folder holding the input spectra.",
+                        default='spectra/')
+    parser.add_argument("-o", "--output", help="The folder to write out plots and catalogues.",
+                        default='./')
 
     args = parser.parse_args()
     return args
 
 
-def read_spectra():
+def read_spectra(parent_folder):
     """
     Read in the spectra produced in earlier pipeline stages.
 
@@ -106,7 +106,7 @@ def read_spectra():
     """
     spectra = []
 
-    vo_files = glob.glob('spectra/*/*_opacity.votable.xml')
+    vo_files = glob.glob(parent_folder + '/*/*_opacity.votable.xml')
     print("Reading {} spectrum files.".format(len(vo_files)))
     for filename in sorted(vo_files):
         print ('Reading', filename)
@@ -523,7 +523,7 @@ def set_field_metadata(field, ucd, unit, description):
         field.description = description
 
 
-def output_spectra_catalogue(spectra):
+def output_spectra_catalogue(spectra, output_folder):
     """
     Output the list of spectrum stats to a VOTable file thor-hi-spectra.vot
 
@@ -621,7 +621,7 @@ def output_spectra_catalogue(spectra):
     set_field_metadata(table.get_field_by_id('Max_Emission'), 'stat.max', 'K',
                        'Maximum average emission')
 
-    filename = "thor-hi-spectra.vot"
+    filename = output_folder +"/thor-hi-spectra.vot"
     writeto(votable, filename)
     print("Wrote out", i, "spectra to", filename)
     for grade in "ABCDEF":
@@ -660,7 +660,7 @@ def flag_duplicate_fields(fields):
     return full_field_map
 
 
-def output_field_catalogue(fields, used_fields):
+def output_field_catalogue(fields, used_fields, output_folder):
     """
     Write out a catalogue of the fields observed under the MAGMO project
     with some basic stats for each field.
@@ -704,7 +704,7 @@ def output_field_catalogue(fields, used_fields):
         meta={'ID': 'thor_fields',
               'name': 'THOR Fields ' + str(datetime.date.today())})
     votable = from_table(fields_table)
-    filename = "thor-fields.vot"
+    filename = output_folder + '/thor-fields.vot'
     writeto(votable, filename)
 
     print("Wrote out", i, "fields to", filename)
@@ -736,7 +736,7 @@ def read_sources(filename, sources):
     return sources
 
 
-def output_source_catalogue():
+def output_source_catalogue(output_folder):
     vo_files = glob.glob('day*/*_src_comp.vot')
     sources = None
     for vof in vo_files:
@@ -745,7 +745,7 @@ def output_source_catalogue():
     # Write out the catalogue
     sources.meta['name'] = 'THOR Sources ' + str(datetime.date.today())
     vot = votable.from_table(sources)
-    vot.to_xml("thor-sources.vot")
+    vot.to_xml(output_folder + "/thor-sources.vot")
 
     vo_files = glob.glob('day*/*_src_isle.vot')
     islands = None
@@ -755,7 +755,7 @@ def output_source_catalogue():
     # Write out the catalogue
     islands.meta['name'] = 'THOR Islands ' + str(datetime.date.today())
     vot = votable.from_table(islands)
-    vot.to_xml("thor-islands.vot")
+    vot.to_xml(output_folder + "/thor-islands.vot")
 
     # Create a map by day of the islands
     isle_day_map = {}
@@ -811,10 +811,10 @@ def output_single_phase_catalogue(spectra):
     print("Wrote out", len(spin_temperatures), "channel temperatures to", filename)
 
 
-def plot_spectra(spectra):
-    magmo.ensure_dir_exists("plots")
+def plot_spectra(spectra, output_folder):
+    magmo.ensure_dir_exists(output_folder + "/plots")
     for rating in 'ABCDEF':
-        magmo.ensure_dir_exists("plots/" + rating)
+        magmo.ensure_dir_exists(output_folder + "/plots/" + rating)
 
     continuum_ranges = magmo.get_continuum_ranges()
 
@@ -886,7 +886,7 @@ def plot_spectra(spectra):
 
         # Write out to plots/field-day-src.pdf
         filename = spectrum.name + ".pdf"
-        plt.savefig("plots/" + spectrum.rating + "/" + filename)
+        plt.savefig(output_folder + "/plots/" + spectrum.rating + "/" + filename)
         plt.close()
 
 
@@ -955,28 +955,28 @@ def main():
     #isle_day_map = output_source_catalogue()
 
     # Process Spectra
-    spectra = read_spectra()
+    spectra = read_spectra(args.input)
     filter_duplicate_sources(spectra, field_map)
     x, y, c, used_fields = extract_lv(spectra)
     continuum_ranges = magmo.get_continuum_ranges()
-    plot_lv(x, y, c, 'thor-lv.pdf', continuum_ranges, False)
-    plot_lv(x, y, c, 'thor-lv-zoom.pdf', continuum_ranges, True)
-    plot_lv_image(x, y, c, 'thor-lv-zoom-im.pdf')
-    output_spectra_catalogue(spectra)
+    plot_lv(x, y, c, args.output + '/thor-lv.pdf', continuum_ranges, False)
+    plot_lv(x, y, c, args.output + '/thor-lv-zoom.pdf', continuum_ranges, True)
+    plot_lv_image(x, y, c, args.output + '/thor-lv-zoom-im.pdf')
+    output_spectra_catalogue(spectra, args.output)
 
 
     # calculate single phase spin temp for A-C
     #output_single_phase_catalogue(spectra)
 
-    plot_spectra(spectra)
+    plot_spectra(spectra, args.output)
 
     # Output only the really good spectra
     x, y, c, temp = extract_lv(spectra, min_rating='B')
-    plot_lv(x, y, c, 'thor-lv_AB.pdf', continuum_ranges, False)
-    plot_lv_image(x, y, c, 'thor-lv-zoom-im_AB.pdf')
+    plot_lv(x, y, c, args.output + '/hor-lv_AB.pdf', continuum_ranges, False)
+    plot_lv_image(x, y, c, args.output + '/thor-lv-zoom-im_AB.pdf')
 
     # Process Fields
-    output_field_catalogue(fields, used_fields)
+    output_field_catalogue(fields, used_fields, args.output)
 
     # also want
     # - Catalogue - Fields - day, field, peak, sn, coords, used
